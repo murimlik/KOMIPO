@@ -3,508 +3,676 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>한국중부발전(주) 대기오염물질 배출량 3D 디지털 트윈</title>
-    <!-- Tailwind CSS -->
+    <title>텍스트 형태소 및 명사 빈도 분석기</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Three.js & OrbitControls -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <!-- Chart.js -->
+    <!-- SheetJS CDN (XLSX, CSV parsing) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- PapaParse (CSV Parsing) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; overflow-x: hidden; }
-        #canvas-container { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
-        .hud-panel { backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.12); }
-        .glass-card { backdrop-filter: blur(8px); background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 3px; }
-        .pulse-online { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); animation: pulse-green 2s infinite; }
-        @keyframes pulse-green {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-hidden">
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
-    <!-- 3D Canvas -->
-    <div id="canvas-container"></div>
-
-    <!-- Top Header -->
-    <header class="absolute top-0 left-0 w-full z-10 p-4 flex flex-col md:flex-row justify-between items-center gap-4 pointer-events-none">
-        <div class="hud-panel p-3 px-5 rounded-xl flex items-center gap-4 pointer-events-auto shadow-2xl">
-            <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded-full bg-emerald-500 pulse-online"></div>
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2 rounded-xl text-white shadow-md shadow-indigo-100">
+                    <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+                </div>
                 <div>
-                    <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 via-cyan-300 to-teal-200 bg-clip-text text-transparent">
-                        한국중부발전(주) 3D 디지털 트윈
-                    </h1>
-                    <p class="text-xs text-slate-400">구글 시트 연동 대기오염물질 배출량 모니터링</p>
+                    <h1 class="text-lg font-bold text-slate-900 leading-tight">텍스트 명사 빈도 분석기</h1>
+                    <p class="text-xs text-slate-500">XLSX / CSV 형태소 분석 및 텍스트 마이닝</p>
                 </div>
             </div>
-            <div class="h-8 w-px bg-slate-700 hidden sm:block"></div>
-            <div class="hidden sm:flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
-                <i class="fa-solid fa-link text-emerald-400"></i>
-                <span class="text-slate-300">구글시트 실시간 연결됨</span>
+            <div class="flex items-center space-x-2">
+                <button id="loadSampleBtn" class="text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-200">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500"></i>
+                    샘플 데이터로 체험
+                </button>
             </div>
-        </div>
-
-        <!-- Controls -->
-        <div class="hud-panel p-2 px-3 rounded-xl flex items-center gap-3 pointer-events-auto text-sm shadow-2xl">
-            <button id="sync-sheet-btn" onclick="fetchGoogleSheetData()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition font-medium flex items-center gap-2 shadow-lg shadow-blue-600/30">
-                <i class="fa-solid fa-rotate text-xs" id="sync-icon"></i>
-                <span>구글시트 동기화</span>
-            </button>
-            <div class="h-6 w-px bg-slate-700"></div>
-            <button onclick="resetCamera()" class="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition" title="카메라 리셋">
-                <i class="fa-solid fa-video"></i>
-            </button>
-            <button onclick="toggleAutoRotate()" id="autorotate-btn" class="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition" title="자동 회전">
-                <i class="fa-solid fa-arrows-spin"></i>
-            </button>
         </div>
     </header>
 
-    <!-- Left Dashboard Sidebar -->
-    <aside class="absolute top-24 left-4 z-10 w-80 max-h-[calc(100vh-7rem)] flex flex-col gap-3 overflow-y-auto pr-1 pointer-events-auto">
-        <!-- Info Card -->
-        <div class="hud-panel p-4 rounded-xl">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <i class="fa-brands fa-google-drive"></i> 데이터 원본
-                </span>
-                <span id="last-updated" class="text-[10px] text-slate-400">업데이트 중...</span>
-            </div>
-            <div class="text-xs text-slate-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
-                <span class="truncate">Google Sheets (pubhtml)</span>
-                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTU_8vKIeApK9uAydFuoRb3nhhZwSQDOoJhTbK4cgCef1s1gtd7h4E4w37X_StF42rmwp6p4a4UI3sS/pubhtml" target="_blank" class="text-blue-400 hover:underline text-[11px] ml-2 shrink-0">
-                    <i class="fa-solid fa-arrow-up-right-from-square"></i> 원본
-                </a>
-            </div>
-        </div>
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-        <!-- Plant Selection -->
-        <div class="hud-panel p-4 rounded-xl">
-            <label class="block text-xs font-medium text-slate-400 mb-2">발전본부 선택 Focus</label>
-            <select id="plant-select" onchange="focusPlant(this.value)" class="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="ALL">전체 발전본부 조감도</option>
-                <option value="보령">보령</option>
-                <option value="신보령">신보령</option>
-                <option value="서울">서울</option>
-                <option value="인천">인천</option>
-                <option value="신서천">신서천</option>
-                <option value="제주">제주</option>
-                <option value="세종">세종</option>
-            </select>
-        </div>
+        <section class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 transition-all">
+            <div class="flex items-center gap-2 mb-4">
+                <span class="w-7 h-7 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-sm">1</span>
+                <h2 class="text-lg font-bold text-slate-900">파일 업로드 (XLSX / CSV)</h2>
+            </div>
+            
+            <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-indigo-500 bg-slate-50 hover:bg-indigo-50/30 rounded-xl p-8 text-center cursor-pointer transition-all duration-200 group">
+                <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
+                <div class="flex flex-col items-center space-y-3">
+                    <div class="p-4 bg-white rounded-full shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
+                        <i data-lucide="upload-cloud" class="w-8 h-8 text-indigo-600"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-700">
+                            파일을 드래그 앤 드롭하거나 <span class="text-indigo-600 underline">클릭하여 선택</span>하세요.
+                        </p>
+                        <p class="text-xs text-slate-400 mt-1">지원 형식: .xlsx, .xls, .csv (최대 50MB)</p>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Summary KPIs -->
-        <div class="grid grid-cols-2 gap-2">
-            <div class="glass-card p-3 rounded-xl border-l-4 border-l-blue-500">
-                <p class="text-[11px] text-slate-400">질소산화물 평균</p>
-                <p id="kpi-nox" class="text-lg font-bold text-blue-400 mt-1">0 <span class="text-xs font-normal text-slate-400">ppm</span></p>
+            <!-- Uploaded File Info -->
+            <div id="fileInfo" class="hidden mt-4 p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 bg-indigo-600 text-white rounded-lg">
+                        <i data-lucide="file-text" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <p id="fileName" class="text-sm font-semibold text-slate-800">filename.xlsx</p>
+                        <p id="fileMeta" class="text-xs text-slate-500">0 KB • 0 행 데이터</p>
+                    </div>
+                </div>
+                <button id="removeFileBtn" class="text-xs text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-white transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
-            <div class="glass-card p-3 rounded-xl border-l-4 border-l-emerald-500">
-                <p class="text-[11px] text-slate-400">이산화황 평균</p>
-                <p id="kpi-sox" class="text-lg font-bold text-emerald-400 mt-1">0 <span class="text-xs font-normal text-slate-400">ppm</span></p>
-            </div>
-            <div class="glass-card p-3 rounded-xl border-l-4 border-l-amber-500">
-                <p class="text-[11px] text-slate-400">먼지 평균</p>
-                <p id="kpi-dust" class="text-lg font-bold text-amber-400 mt-1">0 <span class="text-xs font-normal text-slate-400">mg/S㎥</span></p>
-            </div>
-            <div class="glass-card p-3 rounded-xl border-l-4 border-l-purple-500">
-                <p class="text-[11px] text-slate-400">총 데이터 수</p>
-                <p id="kpi-records" class="text-lg font-bold text-purple-400 mt-1">0 <span class="text-xs font-normal text-slate-400">건</span></p>
-            </div>
-        </div>
+        </section>
 
-        <!-- Chart Container -->
-        <div class="hud-panel p-4 rounded-xl flex flex-col gap-3">
-            <h3 class="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                <span>발전기별 질소산화물(Nox) 평균농도</span>
-                <i class="fa-solid fa-chart-pie text-slate-500"></i>
-            </h3>
-            <div class="h-48 relative">
-                <canvas id="plantChart"></canvas>
+        <section id="configSection" class="hidden bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 transition-all">
+            <div class="flex items-center gap-2 mb-6">
+                <span class="w-7 h-7 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-sm">2</span>
+                <h2 class="text-lg font-bold text-slate-900">분석 컬럼 및 옵션 설정</h2>
             </div>
-        </div>
-    </aside>
 
-    <!-- Right Side Telemetry HUD -->
-    <aside id="telemetry-panel" class="absolute top-24 right-4 z-10 w-80 hud-panel p-4 rounded-xl hidden pointer-events-auto border-l-4 border-l-cyan-500 transition-all">
-        <div class="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-3">
-            <div>
-                <span class="text-[10px] uppercase font-bold text-cyan-400 tracking-wider">SELECTED PLANT TELEMETRY</span>
-                <h2 id="target-plant-name" class="text-base font-bold text-slate-100">보령</h2>
-            </div>
-            <button onclick="closeTelemetry()" class="text-slate-400 hover:text-white p-1">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Column Select -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">분석할 컬럼 선택</label>
+                    <select id="columnSelect" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                        <option value="">컬럼을 선택하세요</option>
+                    </select>
+                    <p class="text-xs text-slate-400">분석하고자 하는 문장/텍스트가 포함된 열을 지정합니다.</p>
+                </div>
 
-        <div class="space-y-3 text-xs">
-            <div class="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
-                <span class="text-slate-400">질소산화물 평균농도</span>
-                <span id="target-nox" class="font-bold text-blue-400">0 ppm</span>
+                <!-- Analysis Options -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">단어 최소 길이 조건</label>
+                        <div class="flex items-center gap-3">
+                            <input type="range" id="minLengthRange" min="1" max="5" value="2" class="w-full accent-indigo-600">
+                            <span id="minLengthValue" class="text-sm font-bold text-indigo-600 min-w-[3rem] text-center bg-indigo-50 px-2 py-1 rounded-md">2자 이상</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 pt-2">
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="includeNumbers" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <span class="text-xs text-slate-700 font-medium">숫자 단어 포함 (예: 2024년, 1위)</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" id="removeDuplicatesInSentence" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <span class="text-xs text-slate-700 font-medium">한 문장 내 중복 단어는 1회만 카운트</span>
+                        </label>
+                    </div>
+                </div>
             </div>
-            <div class="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
-                <span class="text-slate-400">이산화황 평균농도</span>
-                <span id="target-sox" class="font-bold text-emerald-400">0 ppm</span>
+
+            <!-- Custom Stopwords -->
+            <div class="mt-6 pt-6 border-t border-slate-100">
+                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">제외할 불용어 (쉼표로 구분)</label>
+                <input type="text" id="customStopwords" placeholder="예: 분석, 내용, 수, 것, 및, 사용, 응답" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
             </div>
-            <div class="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
-                <span class="text-slate-400">먼지 평균농도</span>
-                <span id="target-dust" class="font-bold text-amber-400">0 mg/S㎥</span>
+
+            <!-- Start Button -->
+            <div class="mt-6 flex justify-end">
+                <button id="startAnalyzeBtn" disabled class="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-semibold text-sm px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    명사 분석 시작하기
+                </button>
             </div>
-        </div>
-    </aside>
+        </section>
+
+        <section id="resultSection" class="hidden space-y-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-sm">3</span>
+                    <h2 class="text-lg font-bold text-slate-900">형태소 분석 결과 리포트</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="downloadCsvBtn" class="text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        결과 엑셀/CSV 내보내기
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary KPI Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs text-slate-500 font-medium">분석된 총 행 수</p>
+                    <p id="kpiTotalRows" class="text-2xl font-extrabold text-slate-900 mt-1">0</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs text-slate-500 font-medium">추출된 총 명사 수</p>
+                    <p id="kpiTotalNouns" class="text-2xl font-extrabold text-indigo-600 mt-1">0</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs text-slate-500 font-medium">고유 명사 종수</p>
+                    <p id="kpiUniqueNouns" class="text-2xl font-extrabold text-violet-600 mt-1">0</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs text-slate-500 font-medium">최다 빈도 단어</p>
+                    <p id="kpiTopWord" class="text-2xl font-extrabold text-emerald-600 mt-1 truncate">-</p>
+                </div>
+            </div>
+
+            <!-- Visualization & Frequency Table Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Top Words Chart -->
+                <div class="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-600"></i>
+                            상위 20개 빈도 단어 시각화
+                        </h3>
+                    </div>
+                    <div class="w-full h-[360px] relative">
+                        <canvas id="freqChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Frequency Table -->
+                <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="list-ordered" class="w-4 h-4 text-indigo-600"></i>
+                            단어 빈도 순위 목록
+                        </h3>
+                        <input type="text" id="searchTableInput" placeholder="단어 검색..." class="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto max-h-[320px] custom-scrollbar border border-slate-100 rounded-xl">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-500 font-semibold">
+                                <tr>
+                                    <th class="py-2.5 px-3 w-12 text-center">순위</th>
+                                    <th class="py-2.5 px-3">단어 (명사)</th>
+                                    <th class="py-2.5 px-3 text-right">빈도수</th>
+                                    <th class="py-2.5 px-3 text-right">비율</th>
+                                </tr>
+                            </thead>
+                            <tbody id="freqTableBody" class="divide-y divide-slate-100">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
 
     <!-- Footer -->
-    <footer class="absolute bottom-4 left-4 z-10 hud-panel px-4 py-2 rounded-xl text-xs text-slate-400 flex items-center gap-4 pointer-events-auto">
-        <div class="flex items-center gap-2">
-            <i class="fa-solid fa-circle-info text-blue-400"></i>
-            <span>3D 모델을 클릭하면 해당 발전기의 세부 모니터링 정보를 확인할 수 있습니다.</span>
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400">
+            Client-side Korean Morphological Analyzer Engine • 모든 데이터는 브라우저 내부에서 안전하게 처리됩니다.
         </div>
     </footer>
 
-    <!-- JavaScript Logic -->
     <script>
-        // Google Sheet Publish CSV Link
-        const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTU_8vKIeApK9uAydFuoRb3nhhZwSQDOoJhTbK4cgCef1s1gtd7h4E4w37X_StF42rmwp6p4a4UI3sS/pub?output=csv";
-
-        let scene, camera, renderer, controls;
-        let plantMeshes = {};
-        let particleSystems = [];
         let rawData = [];
-        let plantAggregated = {};
-        let chartInstance = null;
-        let autoRotate = true;
+        let parsedRows = [];
+        let frequencyResult = [];
+        let myChart = null;
 
-        const plantCoords = {
-            '보령': { x: -30, z: -10, color: 0x3b82f6 },
-            '신보령': { x: -15, z: -25, color: 0x06b6d4 },
-            '서울': { x: 0, z: 20, color: 0x10b981 },
-            '인천': { x: 20, z: 15, color: 0x8b5cf6 },
-            '신서천': { x: -20, z: 15, color: 0xf59e0b },
-            '제주': { x: 30, z: -30, color: 0xec4899 },
-            '세종': { x: 10, z: -5, color: 0x6366f1 }
-        };
+        // 한글 조사 및 접미사 사전 (긴 단어부터 매칭되도록 정렬)
+        const JOSA_LIST = [
+            "으로부터", "에서부터", "들에게는", "에서는", "으로는", "이라고", "에게서", "보다도", 
+            "에까지", "에서는", "은커녕", "조차도", "마저도", "에게는", "한테서",
+            "은", "는", "이", "가", "을", "를", "의", "에", "로", "으로", "과", "와", "도", "만", 
+            "까지", "부터", "처럼", "보다", "마다", "라고", "해서", "이고", "에도", "에서", "한테",
+            "에게", "자마자", "치고", "대로", "따라"
+        ].sort((a, b) => b.length - a.length);
 
-        window.addEventListener('load', () => {
-            init3DScene();
-            initChart();
-            fetchGoogleSheetData();
-            setInterval(fetchGoogleSheetData, 60000);
+        const SUFFIX_LIST = [
+            "스럽다", "스럽게", "스러운", "합니다", "입니다", "습니다", "하겠다", "했었다",
+            "하다", "되다", "이다", "해서", "하여", "했던", "하는", "되는", "했던", "하게",
+            "들", "적", "화", "님", "씨", "상", "중"
+        ].sort((a, b) => b.length - a.length);
+
+        // 기본 불용어 (Stopwords)
+        const DEFAULT_STOPWORDS = new Set([
+            "것", "수", "등", "및", "바", "때", "위", "내", "외", "간", "중", "따라",
+            "경우", "관한", "대한", "통해", "위해", "의한", "인한", "관련", "관련된", "분석",
+            "내용", "사용", "제공", "확인", "진행", "발생", "작성", "등록", "이용", "이후", "이전"
+        ]);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const loadSampleBtn = document.getElementById('loadSampleBtn');
+            const columnSelect = document.getElementById('columnSelect');
+            const startAnalyzeBtn = document.getElementById('startAnalyzeBtn');
+            const minLengthRange = document.getElementById('minLengthRange');
+            const minLengthValue = document.getElementById('minLengthValue');
+            const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+            const searchTableInput = document.getElementById('searchTableInput');
+            const removeFileBtn = document.getElementById('removeFileBtn');
+
+            // File Drag & Drop
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-50/50');
+            });
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+            });
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/50');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileSelect(e.dataTransfer.files[0]);
+                }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFileSelect(e.target.files[0]);
+                }
+            });
+
+            removeFileBtn.addEventListener('click', resetAll);
+
+            // Range input listener
+            minLengthRange.addEventListener('input', (e) => {
+                minLengthValue.textContent = `${e.target.value}자 이상`;
+            });
+
+            // Column select listener
+            columnSelect.addEventListener('change', () => {
+                startAnalyzeBtn.disabled = !columnSelect.value;
+            });
+
+            // Start Analysis
+            startAnalyzeBtn.addEventListener('click', runMorphAnalysis);
+
+            // Sample Data
+            loadSampleBtn.addEventListener('click', loadSampleData);
+
+            // Table Search
+            searchTableInput.addEventListener('input', (e) => {
+                renderTable(e.target.value.trim().toLowerCase());
+            });
+
+            // CSV Download
+            downloadCsvBtn.addEventListener('click', exportToCSV);
         });
 
-        // Fetch & Parse Google Sheet CSV Data
-        function fetchGoogleSheetData() {
-            const syncIcon = document.getElementById('sync-icon');
-            syncIcon.classList.add('fa-spin');
+        function handleFileSelect(file) {
+            const fileName = file.name;
+            const fileSizeKB = (file.size / 1024).toFixed(1);
 
-            Papa.parse(GOOGLE_SHEET_CSV_URL, {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    syncIcon.classList.remove('fa-spin');
-                    if(results.data && results.data.length > 0) {
-                        rawData = results.data;
-                        processData(rawData);
-                        document.getElementById('last-updated').innerText = `동기화: ${new Date().toLocaleTimeString()}`;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 첫 번째 시트 선택
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // JSON 변환
+                    rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                    if (rawData.length === 0) {
+                        alert('파일에 읽을 수 있는 데이터가 없습니다.');
+                        return;
                     }
-                },
-                error: function(err) {
-                    syncIcon.classList.remove('fa-spin');
-                    console.error("Google Sheets Fetch Error:", err);
+
+                    // UI 업데이트
+                    document.getElementById('fileName').textContent = fileName;
+                    document.getElementById('fileMeta').textContent = `${fileSizeKB} KB • 총 ${rawData.length.toLocaleString()}행 데이터`;
+                    document.getElementById('fileInfo').classList.remove('hidden');
+
+                    // Populate Column Select
+                    populateColumnSelect(Object.keys(rawData[0]));
+
+                    document.getElementById('configSection').classList.remove('hidden');
+                } catch (err) {
+                    alert('파일 파싱 중 오류가 발생했습니다: ' + err.message);
                 }
-            });
+            };
+            reader.readAsArrayBuffer(file);
         }
 
-        // Process actual columns from Google Sheet
-        function processData(data) {
-            let totalNox = 0, totalSox = 0, totalDust = 0;
-            let count = 0;
-            plantAggregated = {};
+        function populateColumnSelect(columns) {
+            const columnSelect = document.getElementById('columnSelect');
+            columnSelect.innerHTML = '<option value="">-- 컬럼을 선택하세요 --</option>';
 
-            data.forEach(row => {
-                const plantNameRaw = row['발전기명'] || '';
-                const sox = parseFloat(row['이산화황 평균농도(Sox_ppm)']) || 0;
-                const nox = parseFloat(row['질소산화물 평균농도(Nox_ppm)']) || 0;
-                const dust = parseFloat(row['먼지 평균농도(표준세제곱미터당 밀리그램)']) || 0;
-
-                totalNox += nox;
-                totalSox += sox;
-                totalDust += dust;
-                count++;
-
-                Object.keys(plantCoords).forEach(key => {
-                    if(plantNameRaw.includes(key)) {
-                        if(!plantAggregated[key]) {
-                            plantAggregated[key] = { nox: 0, sox: 0, dust: 0, count: 0 };
-                        }
-                        plantAggregated[key].nox += nox;
-                        plantAggregated[key].sox += sox;
-                        plantAggregated[key].dust += dust;
-                        plantAggregated[key].count += 1;
-                    }
-                });
+            columns.forEach(col => {
+                const option = document.createElement('option');
+                option.value = col;
+                option.textContent = col;
+                columnSelect.appendChild(option);
             });
 
-            // Update KPIs
-            document.getElementById('kpi-nox').innerHTML = `${(count ? totalNox/count : 0).toFixed(2)} <span class="text-xs font-normal text-slate-400">ppm</span>`;
-            document.getElementById('kpi-sox').innerHTML = `${(count ? totalSox/count : 0).toFixed(2)} <span class="text-xs font-normal text-slate-400">ppm</span>`;
-            document.getElementById('kpi-dust').innerHTML = `${(count ? totalDust/count : 0).toFixed(2)} <span class="text-xs font-normal text-slate-400">mg/S㎥</span>`;
-            document.getElementById('kpi-records').innerHTML = `${data.length} <span class="text-xs font-normal text-slate-400">건</span>`;
-
-            updateChart();
-            update3DVisuals();
+            document.getElementById('startAnalyzeBtn').disabled = true;
         }
 
-        function init3DScene() {
-            const container = document.getElementById('canvas-container');
+        // 한글 음절 받침(종성) 유무 확인 함수
+        function hasJongseong(char) {
+            const code = char.charCodeAt(0);
+            if (code < 0xAC00 || code > 0xD7A3) return false;
+            return (code - 0xAC00) % 28 > 0;
+        }
+
+        // 한국어 형태소 분석 - 조사 및 접미사 제거 알고리즘
+        function extractNounFromToken(token) {
+            if (!token || token.length === 0) return '';
             
-            scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+            let word = token.trim();
 
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 45, 85);
+            // 특수문자 및 기호 제거
+            word = word.replace(/[^\w\s가-힣0-9]/g, '');
+            if (!word) return '';
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.shadowMap.enabled = true;
-            container.appendChild(renderer.domElement);
-
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.maxPolarAngle = Math.PI / 2 - 0.05;
-            controls.autoRotate = autoRotate;
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(50, 80, 30);
-            scene.add(dirLight);
-
-            const gridHelper = new THREE.GridHelper(160, 40, 0x3b82f6, 0x1e293b);
-            scene.add(gridHelper);
-
-            build3DPowerPlants();
-
-            const raycaster = new THREE.Raycaster();
-            const mouse = new THREE.Vector2();
-
-            window.addEventListener('click', (e) => {
-                if(e.target.tagName !== 'CANVAS') return;
-
-                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-                raycaster.setFromCamera(mouse, camera);
-                const intersects = raycaster.intersectObjects(scene.children, true);
-
-                if(intersects.length > 0) {
-                    let obj = intersects[0].object;
-                    while(obj.parent && !obj.userData.plantKey && obj.parent !== scene) {
-                        obj = obj.parent;
-                    }
-                    if(obj.userData.plantKey) {
-                        showTelemetry(obj.userData.plantKey);
+            // 1. 긴 조사부터 체크 후 제거
+            for (let josa of JOSA_LIST) {
+                if (word.length > josa.length && word.endsWith(josa)) {
+                    // 특수 규칙: '으로'의 경우 받침이 있거나 'ㄹ' 받침인 경우에만 분리
+                    if (josa === '으로') {
+                        const stem = word.slice(0, -josa.length);
+                        const lastChar = stem.slice(-1);
+                        if (hasJongseong(lastChar)) {
+                            word = stem;
+                            break;
+                        }
+                    } else {
+                        word = word.slice(0, -josa.length);
+                        break;
                     }
                 }
-            });
-
-            window.addEventListener('resize', onWindowResize);
-            animate();
-        }
-
-        function build3DPowerPlants() {
-            Object.keys(plantCoords).forEach(key => {
-                const conf = plantCoords[key];
-                const group = new THREE.Group();
-                group.position.set(conf.x, 0, conf.z);
-                group.userData = { plantKey: key };
-
-                const base = new THREE.Mesh(
-                    new THREE.BoxGeometry(10, 1, 10),
-                    new THREE.MeshStandardMaterial({ color: 0x1e293b })
-                );
-                base.position.y = 0.5;
-                group.add(base);
-
-                const bldg = new THREE.Mesh(
-                    new THREE.BoxGeometry(6, 8, 6),
-                    new THREE.MeshStandardMaterial({ color: 0x334155 })
-                );
-                bldg.position.y = 4.5;
-                group.add(bldg);
-
-                const stack = new THREE.Mesh(
-                    new THREE.CylinderGeometry(0.8, 1.2, 16, 16),
-                    new THREE.MeshStandardMaterial({ color: conf.color })
-                );
-                stack.position.set(2, 8, 2);
-                group.add(stack);
-
-                const particles = createSmokeParticles(conf.x + 2, 16, conf.z + 2);
-                scene.add(particles);
-
-                scene.add(group);
-                plantMeshes[key] = { group, stack, particles };
-            });
-        }
-
-        function createSmokeParticles(x, y, z) {
-            const count = 30;
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(count * 3);
-
-            for(let i=0; i<count; i++) {
-                positions[i*3] = x + (Math.random() - 0.5) * 0.5;
-                positions[i*3+1] = y + Math.random() * 8;
-                positions[i*3+2] = z + (Math.random() - 0.5) * 0.5;
             }
 
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            const pSystem = new THREE.Points(geometry, new THREE.PointsMaterial({
-                color: 0x38bdf8,
-                size: 0.8,
-                transparent: true,
-                opacity: 0.6
-            }));
-            pSystem.userData = { originX: x, originY: y, originZ: z };
-            particleSystems.push(pSystem);
-            return pSystem;
+            // 2. 접미사 제거
+            for (let suffix of SUFFIX_LIST) {
+                if (word.length > suffix.length && word.endsWith(suffix)) {
+                    word = word.slice(0, -suffix.length);
+                    break;
+                }
+            }
+
+            return word;
         }
 
-        function update3DVisuals() {
-            Object.keys(plantCoords).forEach(key => {
-                if(plantMeshes[key] && plantAggregated[key]) {
-                    const data = plantAggregated[key];
-                    const avgNox = data.count ? data.nox / data.count : 0;
-                    const particles = plantMeshes[key].particles;
+        // 문장 토큰화 및 명사 파싱 함수
+        function analyzeText(text, minLen, includeNumbers, userStopwords, uniqueInSentence) {
+            if (!text || typeof text !== 'string') return [];
 
-                    if(avgNox > 15) {
-                        particles.material.color.setHex(0xef4444); // High: Red
-                    } else if(avgNox > 8) {
-                        particles.material.color.setHex(0xf59e0b); // Medium: Amber
-                    } else {
-                        particles.material.color.setHex(0x38bdf8); // Normal: Cyan
-                    }
+            // 공백, 마침표, 줄바꿈 등으로 1차 토큰화
+            const tokens = text.split(/[\s,.\n\t?!;:"'()\[\]{}]+/);
+            const extractedNouns = [];
+
+            for (let token of tokens) {
+                if (!token) continue;
+
+                // 명사 추출
+                let noun = extractNounFromToken(token);
+
+                // 길이기준 검사
+                if (noun.length < minLen) continue;
+
+                // 숫자만 있는 경우 제외 여부
+                if (!includeNumbers && /^\d+$/.test(noun)) continue;
+
+                // 불용어 필터링
+                if (DEFAULT_STOPWORDS.has(noun) || userStopwords.has(noun)) continue;
+
+                extractedNouns.push(noun);
+            }
+
+            if (uniqueInSentence) {
+                return Array.from(new Set(extractedNouns));
+            }
+
+            return extractedNouns;
+        }
+
+        function runMorphAnalysis() {
+            const selectedCol = document.getElementById('columnSelect').value;
+            if (!selectedCol) return;
+
+            const minLength = parseInt(document.getElementById('minLengthRange').value, 10);
+            const includeNumbers = document.getElementById('includeNumbers').checked;
+            const uniqueInSentence = document.getElementById('removeDuplicatesInSentence').checked;
+            
+            // 커스텀 불용어 파싱
+            const customStopwordsInput = document.getElementById('customStopwords').value;
+            const userStopwords = new Set(
+                customStopwordsInput
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0)
+            );
+
+            const counts = {};
+            let totalNounsCount = 0;
+            let validRowsCount = 0;
+
+            rawData.forEach(row => {
+                const cellText = String(row[selectedCol] || '');
+                if (cellText.trim()) {
+                    validRowsCount++;
+                    const nouns = analyzeText(cellText, minLength, includeNumbers, userStopwords, uniqueInSentence);
+                    
+                    nouns.forEach(noun => {
+                        counts[noun] = (counts[noun] || 0) + 1;
+                        totalNounsCount++;
+                    });
                 }
+            });
+
+            // 빈도수 정렬 배열 생성
+            frequencyResult = Object.keys(counts).map(word => {
+                return {
+                    word: word,
+                    count: counts[word],
+                    percentage: totalNounsCount > 0 ? ((counts[word] / totalNounsCount) * 100).toFixed(2) : '0'
+                };
+            }).sort((a, b) => b.count - a.count);
+
+            // 결과 UI 업데이트
+            updateKPIs(validRowsCount, totalNounsCount, frequencyResult);
+            renderChart(frequencyResult.slice(0, 20));
+            renderTable();
+
+            document.getElementById('resultSection').classList.remove('hidden');
+            document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function updateKPIs(rows, totalNouns, freqArray) {
+            document.getElementById('kpiTotalRows').textContent = rows.toLocaleString();
+            document.getElementById('kpiTotalNouns').textContent = totalNouns.toLocaleString();
+            document.getElementById('kpiUniqueNouns').textContent = freqArray.length.toLocaleString();
+            
+            if (freqArray.length > 0) {
+                document.getElementById('kpiTopWord').textContent = `${freqArray[0].word} (${freqArray[0].count}회)`;
+            } else {
+                document.getElementById('kpiTopWord').textContent = '-';
+            }
+        }
+
+        function renderTable(filterKeyword = '') {
+            const tbody = document.getElementById('freqTableBody');
+            tbody.innerHTML = '';
+
+            const filteredData = filterKeyword 
+                ? frequencyResult.filter(item => item.word.toLowerCase().includes(filterKeyword))
+                : frequencyResult;
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-6 text-slate-400">결과 데이터가 없습니다.</td></tr>`;
+                return;
+            }
+
+            filteredData.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3 font-semibold text-slate-400 text-center">${index + 1}</td>
+                    <td class="py-2.5 px-3 font-semibold text-slate-800">${escapeHtml(item.word)}</td>
+                    <td class="py-2.5 px-3 font-bold text-indigo-600 text-right">${item.count.toLocaleString()}</td>
+                    <td class="py-2.5 px-3 text-slate-500 text-right">${item.percentage}%</td>
+                `;
+                tbody.appendChild(tr);
             });
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
+        function renderChart(topItems) {
+            const ctx = document.getElementById('freqChart').getContext('2d');
 
-            particleSystems.forEach(pSystem => {
-                const positions = pSystem.geometry.attributes.position.array;
-                for(let i=0; i<positions.length; i+=3) {
-                    positions[i+1] += 0.08;
-                    if(positions[i+1] > pSystem.userData.originY + 12) {
-                        positions[i+1] = pSystem.userData.originY;
-                        positions[i] = pSystem.userData.originX + (Math.random() - 0.5) * 0.5;
-                        positions[i+2] = pSystem.userData.originZ + (Math.random() - 0.5) * 0.5;
-                    }
-                }
-                pSystem.geometry.attributes.position.needsUpdate = true;
-            });
+            if (myChart) {
+                myChart.destroy();
+            }
 
-            controls.update();
-            renderer.render(scene, camera);
-        }
+            const labels = topItems.map(item => item.word);
+            const dataValues = topItems.map(item => item.count);
 
-        function initChart() {
-            const ctx = document.getElementById('plantChart').getContext('2d');
-            chartInstance = new Chart(ctx, {
-                type: 'doughnut',
+            myChart = new Chart(ctx, {
+                type: 'bar',
                 data: {
-                    labels: Object.keys(plantCoords),
+                    labels: labels,
                     datasets: [{
-                        data: [0, 0, 0, 0, 0, 0, 0],
-                        backgroundColor: ['#3b82f6', '#06b6d4', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1'],
-                        borderWidth: 0
+                        label: '단어 빈도수',
+                        data: dataValues,
+                        backgroundColor: 'rgba(79, 70, 229, 0.85)',
+                        hoverBackgroundColor: 'rgba(67, 56, 202, 1)',
+                        borderRadius: 6,
+                        borderSkipped: false,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } }
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` 빈도수: ${context.parsed.y}회`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                font: { size: 11, family: 'Pretendard' },
+                                color: '#64748b'
+                            }
+                        },
+                        y: {
+                            border: { dash: [4, 4] },
+                            grid: { color: '#f1f5f9' },
+                            ticks: {
+                                font: { size: 11, family: 'Pretendard' },
+                                color: '#64748b'
+                            }
+                        }
                     }
                 }
             });
         }
 
-        function updateChart() {
-            if(!chartInstance) return;
-            const labels = Object.keys(plantCoords);
-            const values = labels.map(key => {
-                const data = plantAggregated[key];
-                return data && data.count ? (data.nox / data.count).toFixed(2) : 0;
-            });
+        function loadSampleData() {
+            const sample = [
+                { id: 1, feedback: "인공지능과 데이터 분석 기술은 미래 데이터 마이닝의 핵심 역량입니다." },
+                { id: 2, feedback: "파이썬과 자바스크립트 언어를 활용하여 웹 애플리케이션을 빠르게 개발할 수 있습니다." },
+                { id: 3, feedback: "고객 응답 데이터에서 주요 키워드와 명사를 추출하여 단어 빈도 분석을 수행합니다." },
+                { id: 4, feedback: "데이터 시각화 차트를 이용하면 빈도수 순위 및 결과를 한눈에 쉽게 확인할 수 있습니다." },
+                { id: 5, feedback: "형태소 분석기 엔진은 한국어 문장에서 조사와 어미를 제거하고 정확한 명사만을 필터링합니다." },
+                { id: 6, feedback: "엑셀 파일 및 CSV 파일 업로드 기능으로 편리하게 빅데이터 분석 작업을 완료하세요." },
+                { id: 7, feedback: "인공지능 분석과 웹 기술 개발을 병행하여 서비스 품질을 크게 향상시킵니다." },
+                { id: 8, feedback: "고객 만족도 조사의 텍스트 반응 및 의견에서 명사를 분리하여 빈도를 측정합니다." }
+            ];
 
-            chartInstance.data.datasets[0].data = values;
-            chartInstance.update();
+            rawData = sample;
+            document.getElementById('fileName').textContent = "샘플_고객_피드백_데이터.xlsx";
+            document.getElementById('fileMeta').textContent = `12.4 KB • 총 ${sample.length}행 샘플 데이터`;
+            document.getElementById('fileInfo').classList.remove('hidden');
+
+            populateColumnSelect(Object.keys(sample[0]));
+            document.getElementById('columnSelect').value = "feedback";
+            document.getElementById('startAnalyzeBtn').disabled = false;
+            document.getElementById('configSection').classList.remove('hidden');
+
+            // Automatically run
+            runMorphAnalysis();
         }
 
-        function showTelemetry(plantKey) {
-            const panel = document.getElementById('telemetry-panel');
-            const data = plantAggregated[plantKey] || { nox: 0, sox: 0, dust: 0, count: 0 };
-            const count = data.count || 1;
-
-            document.getElementById('target-plant-name').innerText = `${plantKey} 발전기`;
-            document.getElementById('target-nox').innerText = `${(data.nox / count).toFixed(2)} ppm`;
-            document.getElementById('target-sox').innerText = `${(data.sox / count).toFixed(2)} ppm`;
-            document.getElementById('target-dust').innerText = `${(data.dust / count).toFixed(2)} mg/S㎥`;
-
-            panel.classList.remove('hidden');
-            focusPlant(plantKey);
-        }
-
-        function closeTelemetry() {
-            document.getElementById('telemetry-panel').classList.add('hidden');
-        }
-
-        function focusPlant(key) {
-            if(key === 'ALL') {
-                resetCamera();
+        function exportToCSV() {
+            if (frequencyResult.length === 0) {
+                alert('내보낼 분석 결과가 없습니다.');
                 return;
             }
-            const coord = plantCoords[key];
-            if(coord) {
-                controls.autoRotate = false;
-                camera.position.set(coord.x + 15, 20, coord.z + 25);
-                controls.target.set(coord.x, 5, coord.z);
-            }
+
+            let csvContent = "\uFEFF"; // UTF-8 BOM
+            csvContent += "순위,단어(명사),빈도수,비율(%)\n";
+
+            frequencyResult.forEach((item, idx) => {
+                csvContent += `${idx + 1},"${item.word.replace(/"/g, '""')}",${item.count},${item.percentage}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `명사_빈도_분석결과_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
-        function resetCamera() {
-            camera.position.set(0, 45, 85);
-            controls.target.set(0, 0, 0);
-            controls.autoRotate = autoRotate;
+        function resetAll() {
+            rawData = [];
+            frequencyResult = [];
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileInfo').classList.add('hidden');
+            document.getElementById('configSection').classList.add('hidden');
+            document.getElementById('resultSection').classList.add('hidden');
+            if (myChart) myChart.destroy();
         }
 
-        function toggleAutoRotate() {
-            autoRotate = !autoRotate;
-            controls.autoRotate = autoRotate;
-            document.getElementById('autorotate-btn').classList.toggle('text-blue-400');
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
     </script>
 </body>
