@@ -1,1155 +1,510 @@
 <!DOCTYPE html>
-<html lang="ko" class="h-full bg-slate-950 text-slate-100">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>한국중부발전(주) 대기오염물질 배출량 3D 디지털 트윈 대시보드</title>
-    
+    <title>한국중부발전(주) 대기오염물질 배출량 3D 디지털 트윈</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Three.js (3D Graphics Core) -->
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js & OrbitControls -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <!-- Three.js OrbitControls -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- PapaParse for CSV Parsing -->
+    <!-- PapaParse (CSV Parsing) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Pretendard:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <script>
-        // Google Sheet Publish CSV Endpoint URL
-const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTU_8vKIeApK9uAydFuoRb3nhhZwSQDOoJhTbK4cgCef1s1gtd7h4E4w37X_StF42rmwp6p4a4UI3sS/pub?output=csv";
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Pretendard', 'sans-serif'],
-                        mono: ['Orbitron', 'monospace'],
-                    },
-                    colors: {
-                        komipo: {
-                            blue: '#003366',
-                            sky: '#00A3E0',
-                            neon: '#00F0FF',
-                            accent: '#FF6B00',
-                            dark: '#0B132B',
-                            card: 'rgba(15, 23, 42, 0.82)'
-                        }
-                    }
-                }
-            }
-        }
-    </script>
     <style>
-        body {
-            font-family: 'Pretendard', sans-serif;
-            overflow: hidden;
-            user-select: none;
-        }
-        .hud-glass {
-            background: rgba(15, 23, 42, 0.78);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(56, 189, 248, 0.25);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-        }
-        .hud-glass-glow {
-            border: 1px solid rgba(0, 240, 255, 0.4);
-            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
-        }
-        .hud-border-teal {
-            border-color: rgba(20, 184, 166, 0.4);
-        }
-        /* Custom Glowing Scrollbar */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; overflow-x: hidden; }
+        #canvas-container { width: 100%; height: 100vh; position: absolute; top: 0; left: 0; z-index: 0; }
+        .hud-panel { backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.12); }
+        .glass-card { backdrop-filter: blur(8px); background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
-        ::-webkit-scrollbar-thumb { background: rgba(0, 163, 224, 0.6); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(0, 240, 255, 0.9); }
-
-        /* Pulse radar ring */
-        @keyframes radar-sweep {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .radar-sweep-line {
-            animation: radar-sweep 4s linear infinite;
-            transform-origin: center;
+        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 3px; }
+        .pulse-online { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); animation: pulse-green 2s infinite; }
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
     </style>
 </head>
-<body class="h-full w-full bg-slate-950 text-slate-100 flex flex-col relative">
+<body class="bg-slate-950 text-slate-100 min-h-screen relative overflow-hidden">
 
-    <!-- 3D Canvas Background Container -->
-    <div id="webgl-container" class="absolute inset-0 z-0 w-full h-full cursor-grab active:cursor-grabbing"></div>
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
 
-    <!-- TOP NAVIGATION HUD OVERLAY -->
-    <header class="relative z-20 w-full px-4 py-3 flex items-center justify-between hud-glass border-b border-sky-500/20">
-        <!-- Brand & Title -->
-        <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-komipo-sky to-blue-700 flex items-center justify-center text-white shadow-lg shadow-sky-500/30 border border-cyan-300/40">
-                <i class="fa-solid fa-cube text-xl animate-pulse"></i>
-            </div>
-            <div>
-                <div class="flex items-center space-x-2">
-                    <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                        한국중부발전(주) <span class="text-komipo-neon font-mono text-xs px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40">3D DIGITAL TWIN</span>
+    <!-- Top Header -->
+    <header class="absolute top-0 left-0 w-full z-10 p-4 flex flex-col md:flex-row justify-between items-center gap-4 pointer-events-none">
+        <div class="hud-panel p-3 px-5 rounded-xl flex items-center gap-4 pointer-events-auto shadow-2xl">
+            <div class="flex items-center gap-3">
+                <div class="w-3 h-3 rounded-full bg-emerald-500 pulse-online"></div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 via-cyan-300 to-teal-200 bg-clip-text text-transparent">
+                        한국중부발전(주) 3D 디지털 트윈
                     </h1>
+                    <p class="text-xs text-slate-400">구글 시트 연동 대기오염물질 배출량 모니터링</p>
                 </div>
-                <p class="text-xs text-slate-400 hidden sm:block">대기오염물질 실시간 멀티스펙트럼 3D 관제 대시보드 (2025년 데이터 연동)</p>
+            </div>
+            <div class="h-8 w-px bg-slate-700 hidden sm:block"></div>
+            <div class="hidden sm:flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                <i class="fa-solid fa-link text-emerald-400"></i>
+                <span class="text-slate-300">구글시트 실시간 연결됨</span>
             </div>
         </div>
 
-        <!-- Center Controls: Viewport Presets -->
-        <div class="hidden lg:flex items-center space-x-1.5 bg-slate-900/80 p-1 rounded-xl border border-sky-500/20 text-xs">
-            <button onclick="setCameraPreset('overview')" class="px-3 py-1.5 rounded-lg hover:bg-sky-500/20 hover:text-cyan-300 transition-all font-medium flex items-center space-x-1.5">
-                <i class="fa-solid fa-globe text-sky-400"></i>
-                <span>전체 조감도</span>
+        <!-- Controls -->
+        <div class="hud-panel p-2 px-3 rounded-xl flex items-center gap-3 pointer-events-auto text-sm shadow-2xl">
+            <button id="sync-sheet-btn" onclick="fetchGoogleSheetData()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition font-medium flex items-center gap-2 shadow-lg shadow-blue-600/30">
+                <i class="fa-solid fa-rotate text-xs" id="sync-icon"></i>
+                <span>구글시트 동기화</span>
             </button>
-            <button onclick="setCameraPreset('boryeong')" class="px-3 py-1.5 rounded-lg hover:bg-sky-500/20 hover:text-cyan-300 transition-all font-medium flex items-center space-x-1.5">
-                <i class="fa-solid fa-industry text-amber-400"></i>
-                <span>보령본부</span>
+            <div class="h-6 w-px bg-slate-700"></div>
+            <button onclick="resetCamera()" class="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition" title="카메라 리셋">
+                <i class="fa-solid fa-video"></i>
             </button>
-            <button onclick="setCameraPreset('seoul')" class="px-3 py-1.5 rounded-lg hover:bg-sky-500/20 hover:text-cyan-300 transition-all font-medium flex items-center space-x-1.5">
-                <i class="fa-solid fa-building-flag text-emerald-400"></i>
-                <span>서울복합</span>
-            </button>
-            <button onclick="setCameraPreset('seocheon')" class="px-3 py-1.5 rounded-lg hover:bg-sky-500/20 hover:text-cyan-300 transition-all font-medium flex items-center space-x-1.5">
-                <i class="fa-solid fa-tower-cell text-indigo-400"></i>
-                <span>신서천</span>
-            </button>
-            <button onclick="setCameraPreset('stack_detail')" class="px-3 py-1.5 rounded-lg hover:bg-sky-500/20 hover:text-cyan-300 transition-all font-medium flex items-center space-x-1.5">
-                <i class="fa-solid fa-smog text-teal-400"></i>
-                <span>연돌 센서 줌</span>
-            </button>
-        </div>
-
-        <!-- Top Right Actions -->
-        <div class="flex items-center space-x-2">
-            <!-- CSV Upload Button -->
-            <label for="csvFileInput" class="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 text-xs font-semibold border border-cyan-500/40 transition-all shadow-md">
-                <i class="fa-solid fa-file-csv text-emerald-400 text-sm"></i>
-                <span class="hidden sm:inline">CSV 데이터 변경</span>
-                <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="handleFileUpload(event)">
-            </label>
-
-            <!-- Table View Toggle Button -->
-            <button onclick="toggleTableModal()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-all">
-                <i class="fa-solid fa-table-list mr-1 text-sky-400"></i>
-                <span class="hidden md:inline">원시 데이터</span>
-            </button>
-
-            <!-- 3D Settings Dropdown Trigger -->
-            <button onclick="toggleDisplayOptions()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 transition-all" title="3D 렌더링 옵션">
-                <i class="fa-solid fa-sliders"></i>
+            <button onclick="toggleAutoRotate()" id="autorotate-btn" class="p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition" title="자동 회전">
+                <i class="fa-solid fa-arrows-spin"></i>
             </button>
         </div>
     </header>
 
-    <!-- MAIN INTERACTIVE HUD OVERLAY LAYOUT -->
-    <div class="relative z-10 flex-1 w-full h-full p-3 sm:p-4 pointer-events-none grid grid-cols-12 gap-3 overflow-hidden">
-
-        <!-- LEFT SIDEBAR HUD: Plant Telemetry & Selection -->
-        <div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col space-y-3 pointer-events-auto h-full overflow-y-auto pr-1">
-            
-            <!-- Global Twin Status Card -->
-            <div class="hud-glass rounded-2xl p-4 space-y-3">
-                <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
-                    <span class="text-xs font-semibold text-sky-300 uppercase tracking-widest flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                        트윈 모니터링 노드
-                    </span>
-                    <span id="activeDatasetTag" class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-900/60 text-cyan-300 border border-cyan-500/30">
-                        2025 표준 데이터
-                    </span>
-                </div>
-
-                <!-- Plant Selector Dropdown -->
-                <div>
-                    <label for="plantSelect" class="text-xs text-slate-400 block mb-1">모니터링 대상 발전본부:</label>
-                    <select id="plantSelect" onchange="onPlantSelectChange()" class="w-full bg-slate-900/90 border border-cyan-500/40 rounded-xl px-3 py-2 text-xs font-bold text-cyan-200 focus:outline-none focus:ring-2 focus:ring-komipo-neon cursor-pointer">
-                        <option value="ALL">전체 사업소 통합 관제</option>
-                    </select>
-                </div>
-
-                <!-- KPI Metric Chips -->
-                <div class="grid grid-cols-2 gap-2 pt-1">
-                    <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                        <span class="text-[10px] text-slate-400 block">총 오염물질 배출</span>
-                        <div class="text-lg font-mono font-bold text-cyan-300 mt-0.5">
-                            <span id="kpiTotalEmissions">0</span> <span class="text-xs font-normal text-slate-400">톤</span>
-                        </div>
-                    </div>
-                    <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-800">
-                        <span class="text-[10px] text-slate-400 block">허용기준 준수율</span>
-                        <div class="text-lg font-mono font-bold text-emerald-400 mt-0.5">
-                            <span id="kpiComplianceRate">99.2</span>%
-                        </div>
-                    </div>
-                </div>
+    <!-- Left Dashboard Sidebar -->
+    <aside class="absolute top-24 left-4 z-10 w-80 max-h-[calc(100vh-7rem)] flex flex-col gap-3 overflow-y-auto pr-1 pointer-events-auto">
+        <!-- Info Card -->
+        <div class="hud-panel p-4 rounded-xl">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fa-brands fa-google-drive"></i> 데이터 원본
+                </span>
+                <span id="last-updated" class="text-[10px] text-slate-400">업데이트 중...</span>
             </div>
-
-            <!-- Pollutant Telemetry Breakdowns -->
-            <div class="hud-glass rounded-2xl p-4 space-y-3 flex-1 flex flex-col justify-between">
-                <div>
-                    <h2 class="text-xs font-bold text-slate-200 tracking-wider uppercase mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-chart-simple text-komipo-neon"></i>
-                        물질별 실시간 농도/배출량
-                    </h2>
-
-                    <!-- NOx Progress Card -->
-                    <div class="bg-slate-900/80 rounded-xl p-3 border border-amber-500/30 space-y-1.5 mb-2.5">
-                        <div class="flex items-center justify-between text-xs">
-                            <span class="font-semibold text-amber-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-fire text-[10px]"></i> 질소산화물 (NOx)
-                            </span>
-                            <span id="kpiNoxVal" class="font-mono text-amber-300 font-bold">0 톤</span>
-                        </div>
-                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                            <div id="barNox" class="bg-amber-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                        <div class="flex justify-between text-[10px] text-slate-400">
-                            <span>점유율: <strong id="shareNox" class="text-slate-200">0%</strong></span>
-                            <span>상태: <span class="text-emerald-400 font-medium">안전</span></span>
-                        </div>
-                    </div>
-
-                    <!-- SOx Progress Card -->
-                    <div class="bg-slate-900/80 rounded-xl p-3 border border-indigo-500/30 space-y-1.5 mb-2.5">
-                        <div class="flex items-center justify-between text-xs">
-                            <span class="font-semibold text-indigo-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-vial text-[10px]"></i> 황산화물 (SOx)
-                            </span>
-                            <span id="kpiSoxVal" class="font-mono text-indigo-300 font-bold">0 톤</span>
-                        </div>
-                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                            <div id="barSox" class="bg-indigo-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                        <div class="flex justify-between text-[10px] text-slate-400">
-                            <span>점유율: <strong id="shareSox" class="text-slate-200">0%</strong></span>
-                            <span>상태: <span class="text-emerald-400 font-medium">안전</span></span>
-                        </div>
-                    </div>
-
-                    <!-- Dust Progress Card -->
-                    <div class="bg-slate-900/80 rounded-xl p-3 border border-teal-500/30 space-y-1.5">
-                        <div class="flex items-center justify-between text-xs">
-                            <span class="font-semibold text-teal-400 flex items-center gap-1.5">
-                                <i class="fa-solid fa-dust text-[10px]"></i> 먼지 (Dust / TSP)
-                            </span>
-                            <span id="kpiDustVal" class="font-mono text-teal-300 font-bold">0 톤</span>
-                        </div>
-                        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                            <div id="barDust" class="bg-teal-400 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                        <div class="flex justify-between text-[10px] text-slate-400">
-                            <span>점유율: <strong id="shareDust" class="text-slate-200">0%</strong></span>
-                            <span>상태: <span class="text-emerald-400 font-medium">안전</span></span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Environmental Sensor Status Footer -->
-                <div class="mt-3 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-                    <span class="flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check text-emerald-400"></i> TMS 자동 센서 연결됨
-                    </span>
-                    <span class="font-mono text-[10px] text-cyan-400">FPS: <span id="fpsCounter">60</span></span>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- CENTER VIEWPORT INTERACTION GUIDES & QUICK HUD CONTROLS -->
-        <div class="col-span-12 md:col-span-4 lg:col-span-6 flex flex-col justify-between pointer-events-none">
-            <!-- Top Center Notification HUD -->
-            <div class="self-center pointer-events-auto bg-slate-900/80 border border-cyan-500/30 rounded-full px-4 py-1.5 text-xs text-cyan-200 flex items-center space-x-2 shadow-lg backdrop-blur-md">
-                <i class="fa-solid fa-hand-pointer animate-bounce text-komipo-neon"></i>
-                <span>3D 연돌(굴뚝) 및 발전 건물을 클릭하여 호기별 세부 스펙을 조회하세요.</span>
-            </div>
-
-            <!-- Bottom Center Quick Facility Selector Pills -->
-            <div class="self-center pointer-events-auto flex flex-wrap justify-center gap-1.5 max-w-full bg-slate-950/80 p-2 rounded-2xl border border-slate-800 backdrop-blur-md">
-                <button onclick="focusPlantIn3D('보령발전본부')" class="px-3 py-1 text-xs rounded-xl bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-200 border border-slate-700 transition-all font-medium text-slate-300">
-                    보령본부
-                </button>
-                <button onclick="focusPlantIn3D('신보령발전본부')" class="px-3 py-1 text-xs rounded-xl bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-200 border border-slate-700 transition-all font-medium text-slate-300">
-                    신보령본부
-                </button>
-                <button onclick="focusPlantIn3D('서울발전본부')" class="px-3 py-1 text-xs rounded-xl bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-200 border border-slate-700 transition-all font-medium text-slate-300">
-                    서울복합
-                </button>
-                <button onclick="focusPlantIn3D('인천발전본부')" class="px-3 py-1 text-xs rounded-xl bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-200 border border-slate-700 transition-all font-medium text-slate-300">
-                    인천본부
-                </button>
-                <button onclick="focusPlantIn3D('신서천발전본부')" class="px-3 py-1 text-xs rounded-xl bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-200 border border-slate-700 transition-all font-medium text-slate-300">
-                    신서천본부
-                </button>
-                <button onclick="focusPlantIn3D('제주발전본부')" class="px-3 py-1 text-xs rounded-xl bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-200 border border-slate-700 transition-all font-medium text-slate-300">
-                    제주본부
-                </button>
-                <button onclick="focusPlantIn3D('세종발전본부')" class="px-3 py-1 text-xs rounded-xl bg-slate-800 hover:bg-cyan-900/60 hover:text-cyan-200 border border-slate-700 transition-all font-medium text-slate-300">
-                    세종본부
-                </button>
+            <div class="text-xs text-slate-300 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 flex justify-between items-center">
+                <span class="truncate">Google Sheets (pubhtml)</span>
+                <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTU_8vKIeApK9uAydFuoRb3nhhZwSQDOoJhTbK4cgCef1s1gtd7h4E4w37X_StF42rmwp6p4a4UI3sS/pubhtml" target="_blank" class="text-blue-400 hover:underline text-[11px] ml-2 shrink-0">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> 원본
+                </a>
             </div>
         </div>
 
-        <!-- RIGHT SIDEBAR HUD: Interactive Charts & Selected Plant Inspector -->
-        <div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col space-y-3 pointer-events-auto h-full overflow-y-auto pl-1">
-            
-            <!-- Selected Object Details Card -->
-            <div id="inspectorCard" class="hud-glass hud-glass-glow rounded-2xl p-4 transition-all duration-300">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-bold text-komipo-neon flex items-center gap-1.5">
-                        <i class="fa-solid fa-microchip"></i> 3D 개체 타겟 정보
-                    </span>
-                    <span id="targetStatusBadge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-300 font-mono">NORMAL</span>
-                </div>
-                <h3 id="targetPlantName" class="text-base font-extrabold text-white">보령발전본부 1~8호기</h3>
-                <p id="targetPlantSub" class="text-xs text-slate-400 mt-0.5">유연탄 주력 발전설비 (SCR / FGD 저감설비 작동)</p>
-
-                <div class="grid grid-cols-3 gap-2 my-3 text-center">
-                    <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
-                        <span class="text-[10px] text-slate-400 block">NOx (kg)</span>
-                        <span id="targetNox" class="text-xs font-mono font-bold text-amber-400">0</span>
-                    </div>
-                    <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
-                        <span class="text-[10px] text-slate-400 block">SOx (kg)</span>
-                        <span id="targetSox" class="text-xs font-mono font-bold text-indigo-400">0</span>
-                    </div>
-                    <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
-                        <span class="text-[10px] text-slate-400 block">Dust (kg)</span>
-                        <span id="targetDust" class="text-xs font-mono font-bold text-teal-400">0</span>
-                    </div>
-                </div>
-
-                <div class="text-[11px] text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
-                    <span>배출 연돌 높이 / 수</span>
-                    <span class="font-mono text-cyan-300 font-semibold" id="targetStackHeight">150m (4기)</span>
-                </div>
-            </div>
-
-            <!-- Chart 1: Monthly Emission Trend -->
-            <div class="hud-glass rounded-2xl p-4 flex-1 flex flex-col justify-between">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <i class="fa-solid fa-chart-line text-sky-400"></i>
-                        월별 대기 오염물질 배출 추이
-                    </h3>
-                    <span class="text-[10px] text-slate-400">2025년</span>
-                </div>
-                <div class="h-36 w-full relative">
-                    <canvas id="monthlyTrendChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Chart 2: Top Emission Power Units -->
-            <div class="hud-glass rounded-2xl p-4 flex-1 flex flex-col justify-between">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <i class="fa-solid fa-ranking-star text-amber-400"></i>
-                        발전 호기별 배출 Top 5
-                    </h3>
-                    <span class="text-[10px] text-slate-400">톤 (Ton)</span>
-                </div>
-                <div class="h-36 w-full relative">
-                    <canvas id="topUnitsChart"></canvas>
-                </div>
-            </div>
-
+        <!-- Plant Selection -->
+        <div class="hud-panel p-4 rounded-xl">
+            <label class="block text-xs font-medium text-slate-400 mb-2">발전본부 선택 Focus</label>
+            <select id="plant-select" onchange="focusPlant(this.value)" class="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="ALL">전체 발전본부 조감도</option>
+                <option value="보령">보령</option>
+                <option value="신보령">신보령</option>
+                <option value="서울">서울</option>
+                <option value="인천">인천</option>
+                <option value="신서천">신서천</option>
+                <option value="제주">제주</option>
+                <option value="세종">세종</option>
+            </select>
         </div>
 
-    </div>
+        <!-- Summary KPIs -->
+        <div class="grid grid-cols-2 gap-2">
+            <div class="glass-card p-3 rounded-xl border-l-4 border-l-blue-500">
+                <p class="text-[11px] text-slate-400">질소산화물 평균</p>
+                <p id="kpi-nox" class="text-lg font-bold text-blue-400 mt-1">0 <span class="text-xs font-normal text-slate-400">ppm</span></p>
+            </div>
+            <div class="glass-card p-3 rounded-xl border-l-4 border-l-emerald-500">
+                <p class="text-[11px] text-slate-400">이산화황 평균</p>
+                <p id="kpi-sox" class="text-lg font-bold text-emerald-400 mt-1">0 <span class="text-xs font-normal text-slate-400">ppm</span></p>
+            </div>
+            <div class="glass-card p-3 rounded-xl border-l-4 border-l-amber-500">
+                <p class="text-[11px] text-slate-400">먼지 평균</p>
+                <p id="kpi-dust" class="text-lg font-bold text-amber-400 mt-1">0 <span class="text-xs font-normal text-slate-400">mg/S㎥</span></p>
+            </div>
+            <div class="glass-card p-3 rounded-xl border-l-4 border-l-purple-500">
+                <p class="text-[11px] text-slate-400">총 데이터 수</p>
+                <p id="kpi-records" class="text-lg font-bold text-purple-400 mt-1">0 <span class="text-xs font-normal text-slate-400">건</span></p>
+            </div>
+        </div>
 
-    <!-- 3D DISPLAY OPTIONS FLOATING PANEL (Hidden by Default) -->
-    <div id="optionsPanel" class="hidden absolute top-16 right-4 z-30 w-72 hud-glass rounded-2xl p-4 space-y-3 shadow-2xl">
-        <div class="flex items-center justify-between border-b border-slate-700 pb-2">
-            <h4 class="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                <i class="fa-solid fa-sliders"></i> 3D 디지털 트윈 설정
-            </h4>
-            <button onclick="toggleDisplayOptions()" class="text-slate-400 hover:text-white text-xs">
+        <!-- Chart Container -->
+        <div class="hud-panel p-4 rounded-xl flex flex-col gap-3">
+            <h3 class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <span>발전기별 질소산화물(Nox) 평균농도</span>
+                <i class="fa-solid fa-chart-pie text-slate-500"></i>
+            </h3>
+            <div class="h-48 relative">
+                <canvas id="plantChart"></canvas>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Right Side Telemetry HUD -->
+    <aside id="telemetry-panel" class="absolute top-24 right-4 z-10 w-80 hud-panel p-4 rounded-xl hidden pointer-events-auto border-l-4 border-l-cyan-500 transition-all">
+        <div class="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-3">
+            <div>
+                <span class="text-[10px] uppercase font-bold text-cyan-400 tracking-wider">SELECTED PLANT TELEMETRY</span>
+                <h2 id="target-plant-name" class="text-base font-bold text-slate-100">보령</h2>
+            </div>
+            <button onclick="closeTelemetry()" class="text-slate-400 hover:text-white p-1">
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
 
-        <div class="space-y-2 text-xs">
-            <label class="flex items-center justify-between cursor-pointer hover:bg-slate-800/50 p-1.5 rounded-lg">
-                <span class="text-slate-300">연돌 배출 파티클 (Smoke)</span>
-                <input type="checkbox" id="toggleParticles" checked onchange="toggleSmokeParticles(this.checked)" class="accent-cyan-400 cursor-pointer">
-            </label>
-
-            <label class="flex items-center justify-between cursor-pointer hover:bg-slate-800/50 p-1.5 rounded-lg">
-                <span class="text-slate-300">카메라 자동 회전 (Auto Orbit)</span>
-                <input type="checkbox" id="toggleAutoRotate" onchange="toggleAutoRotation(this.checked)" class="accent-cyan-400 cursor-pointer">
-            </label>
-
-            <label class="flex items-center justify-between cursor-pointer hover:bg-slate-800/50 p-1.5 rounded-lg">
-                <span class="text-slate-300">디지털 그리드 지형 표시</span>
-                <input type="checkbox" id="toggleGrid" checked onchange="toggleTerrainGrid(this.checked)" class="accent-cyan-400 cursor-pointer">
-            </label>
-
-            <label class="flex items-center justify-between cursor-pointer hover:bg-slate-800/50 p-1.5 rounded-lg">
-                <span class="text-slate-300">열화상 / 히트맵 오버레이</span>
-                <input type="checkbox" id="toggleHeatmap" onchange="toggleHeatmapOverlay(this.checked)" class="accent-cyan-400 cursor-pointer">
-            </label>
-        </div>
-    </div>
-
-    <!-- RAW DATA TABLE MODAL -->
-    <div id="tableModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-lg">
-        <div class="hud-glass w-full max-w-5xl max-h-[85vh] rounded-2xl p-5 flex flex-col space-y-4 border border-cyan-500/30">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between pb-3 border-b border-slate-700">
-                <div class="flex items-center space-x-2">
-                    <i class="fa-solid fa-table text-komipo-neon text-lg"></i>
-                    <h2 class="text-base font-bold text-white">중부발전 대기오염물질 원본 데이터 테이블</h2>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <button onclick="exportFilteredCSV()" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all flex items-center gap-1.5">
-                        <i class="fa-solid fa-file-excel"></i> CSV 다운로드
-                    </button>
-                    <button onclick="toggleTableModal()" class="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300">
-                        <i class="fa-solid fa-xmark text-base"></i>
-                    </button>
-                </div>
+        <div class="space-y-3 text-xs">
+            <div class="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                <span class="text-slate-400">질소산화물 평균농도</span>
+                <span id="target-nox" class="font-bold text-blue-400">0 ppm</span>
             </div>
-
-            <!-- Table Search & Filter Bar -->
-            <div class="flex items-center justify-between gap-3">
-                <input type="text" id="tableSearchInput" oninput="renderTable()" placeholder="사업소명, 호기 검색..." class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 w-64">
-                <span class="text-xs text-slate-400">총 <strong id="tableTotalRows" class="text-cyan-300">0</strong>건 로드됨</span>
+            <div class="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                <span class="text-slate-400">이산화황 평균농도</span>
+                <span id="target-sox" class="font-bold text-emerald-400">0 ppm</span>
             </div>
-
-            <!-- Table Body Container -->
-            <div class="flex-1 overflow-auto rounded-xl border border-slate-800 bg-slate-900/60">
-                <table class="w-full text-left text-xs border-collapse">
-                    <thead class="bg-slate-900 sticky top-0 border-b border-slate-700 text-slate-300">
-                        <tr>
-                            <th class="py-2.5 px-4 font-semibold">측정일자</th>
-                            <th class="py-2.5 px-4 font-semibold">사업소명</th>
-                            <th class="py-2.5 px-4 font-semibold">발전설비</th>
-                            <th class="py-2.5 px-4 text-right font-semibold">NOx (kg)</th>
-                            <th class="py-2.5 px-4 text-right font-semibold">SOx (kg)</th>
-                            <th class="py-2.5 px-4 text-right font-semibold">Dust (kg)</th>
-                            <th class="py-2.5 px-4 text-right font-semibold">합계 (kg)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="modalTableBody" class="divide-y divide-slate-800 text-slate-300">
-                        <!-- Dynamic Rows -->
-                    </tbody>
-                </table>
+            <div class="flex justify-between items-center bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                <span class="text-slate-400">먼지 평균농도</span>
+                <span id="target-dust" class="font-bold text-amber-400">0 mg/S㎥</span>
             </div>
         </div>
-    </div>
+    </aside>
 
+    <!-- Footer -->
+    <footer class="absolute bottom-4 left-4 z-10 hud-panel px-4 py-2 rounded-xl text-xs text-slate-400 flex items-center gap-4 pointer-events-auto">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-circle-info text-blue-400"></i>
+            <span>3D 모델을 클릭하면 해당 발전기의 세부 모니터링 정보를 확인할 수 있습니다.</span>
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic -->
     <script>
-        /**
-         * DEFAULT SAMPLE DATA GENERATOR (KOMIPO 2025)
-         * Generates realistic air emission datasets for 7 main power plants
-         */
-        function generateDefaultKomipoData() {
-            const plants = [
-                { name: '보령발전본부', units: ['1호기', '2호기', '3호기', '4호기', '5호기', '6호기', '7호기', '8호기'], factor: 2.2 },
-                { name: '신보령발전본부', units: ['1호기', '2호기'], factor: 1.6 },
-                { name: '서울발전본부', units: ['복합 1호기', '복합 2호기'], factor: 0.4 },
-                { name: '인천발전본부', units: ['복합 1호기', '복합 2호기', '복합 3호기'], factor: 0.8 },
-                { name: '신서천발전본부', units: ['1호기'], factor: 1.2 },
-                { name: '제주발전본부', units: ['1호기', '2호기', '복합 1호기'], factor: 0.9 },
-                { name: '세종발전본부', units: ['복합 1호기'], factor: 0.5 }
-            ];
+        // Google Sheet Publish CSV Link
+        const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTU_8vKIeApK9uAydFuoRb3nhhZwSQDOoJhTbK4cgCef1s1gtd7h4E4w37X_StF42rmwp6p4a4UI3sS/pub?output=csv";
 
-            const rows = [];
-            for (let month = 1; month <= 12; month++) {
-                const monthStr = month < 10 ? `2025-0${month}` : `2025-${month}`;
-
-                plants.forEach(plant => {
-                    plant.units.forEach(unit => {
-                        const seasonalMultiplier = (month === 1 || month === 2 || month === 7 || month === 8 || month === 12) ? 1.25 : 0.95;
-                        
-                        let nox = Math.round((1200 + Math.random() * 800) * plant.factor * seasonalMultiplier);
-                        let sox = plant.name.includes('서울') || plant.name.includes('세종') 
-                                    ? Math.round((10 + Math.random() * 20) * plant.factor)
-                                    : Math.round((600 + Math.random() * 500) * plant.factor * seasonalMultiplier);
-                        let dust = Math.round((40 + Math.random() * 60) * plant.factor * seasonalMultiplier);
-
-                        rows.push({
-                            date: `${monthStr}-28`,
-                            month: month,
-                            plant: plant.name,
-                            unit: unit,
-                            nox: nox,
-                            sox: sox,
-                            dust: dust,
-                            total: nox + sox + dust
-                        });
-                    });
-                });
-            }
-            return rows;
-        }
-
-        // Application State
-        let rawData = [];
-        let filteredData = [];
-        let selectedPlantName = 'ALL';
-
-        // Chart Instances
-        let monthlyChart = null;
-        let topUnitsChart = null;
-
-        // 3D Three.js Globals
         let scene, camera, renderer, controls;
-        let plant3DGroupMap = {};
-        let stackParticleSystems = [];
-        let terrainGridHelper = null;
-        let heatmapOverlayMesh = null;
+        let plantMeshes = {};
+        let particleSystems = [];
+        let rawData = [];
+        let plantAggregated = {};
+        let chartInstance = null;
+        let autoRotate = true;
 
-        // Raycasting for 3D clicks
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
+        const plantCoords = {
+            '보령': { x: -30, z: -10, color: 0x3b82f6 },
+            '신보령': { x: -15, z: -25, color: 0x06b6d4 },
+            '서울': { x: 0, z: 20, color: 0x10b981 },
+            '인천': { x: 20, z: 15, color: 0x8b5cf6 },
+            '신서천': { x: -20, z: 15, color: 0xf59e0b },
+            '제주': { x: 30, z: -30, color: 0xec4899 },
+            '세종': { x: 10, z: -5, color: 0x6366f1 }
+        };
 
-        function init3DScene() {
-            const container = document.getElementById('webgl-container');
-            const width = container.clientWidth;
-            const height = container.clientHeight;
+        window.addEventListener('load', () => {
+            init3DScene();
+            initChart();
+            fetchGoogleSheetData();
+            setInterval(fetchGoogleSheetData, 60000);
+        });
 
-            // 1. Scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x070b19);
-            scene.fog = new THREE.FogExp2(0x070b19, 0.008);
+        // Fetch & Parse Google Sheet CSV Data
+        function fetchGoogleSheetData() {
+            const syncIcon = document.getElementById('sync-icon');
+            syncIcon.classList.add('fa-spin');
 
-            // 2. Camera
-            camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-            camera.position.set(0, 50, 110);
-
-            // 3. Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-            renderer.setSize(width, height);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            container.appendChild(renderer.domElement);
-
-            // 4. Orbit Controls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.maxPolarAngle = Math.PI / 2 - 0.01; // Don't go under ground
-            controls.minDistance = 10;
-            controls.maxDistance = 250;
-
-            // 5. Lighting
-            const ambientLight = new THREE.AmbientLight(0x223355, 1.2);
-            scene.add(ambientLight);
-
-            const dirLight = new THREE.DirectionalLight(0x00f0ff, 1.5);
-            dirLight.position.set(60, 100, 40);
-            dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 2048;
-            dirLight.shadow.mapSize.height = 2048;
-            scene.add(dirLight);
-
-            const fillLight = new THREE.DirectionalLight(0xffaa00, 0.6);
-            fillLight.position.set(-60, 40, -40);
-            scene.add(fillLight);
-
-            // 6. Terrain / Digital Grid Base
-            create3DTerrain();
-
-            // 7. Construct 3D Digital Twin Power Plants
-            build3DPowerPlants();
-
-            // 8. Event Listeners
-            window.addEventListener('resize', onWindowResize);
-            renderer.domElement.addEventListener('pointerdown', onDocumentPointerDown);
-
-            // Start Render Loop
-            animate();
-        }
-
-        function create3DTerrain() {
-            // Main Island Base
-            const baseGeo = new THREE.CylinderGeometry(85, 90, 4, 64);
-            const baseMat = new THREE.MeshStandardMaterial({
-                color: 0x0f172a,
-                roughness: 0.8,
-                metalness: 0.2
-            });
-            const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-            baseMesh.position.y = -2;
-            baseMesh.receiveShadow = true;
-            scene.add(baseMesh);
-
-            // Sci-Fi Grid Overlay
-            terrainGridHelper = new THREE.GridHelper(160, 40, 0x00f0ff, 0x1e293b);
-            terrainGridHelper.position.y = 0.05;
-            scene.add(terrainGridHelper);
-
-            // Heatmap Overlay Plane (Hidden by default)
-            const heatGeo = new THREE.PlaneGeometry(160, 160, 32, 32);
-            const heatMat = new THREE.MeshBasicMaterial({
-                color: 0xff3300,
-                wireframe: true,
-                transparent: true,
-                opacity: 0.25,
-                visible: false
-            });
-            heatmapOverlayMesh = new THREE.Mesh(heatGeo, heatMat);
-            heatmapOverlayMesh.rotation.x = -Math.PI / 2;
-            heatmapOverlayMesh.position.y = 0.1;
-            scene.add(heatmapOverlayMesh);
-        }
-
-        /**
-         * Procedurally builds 3D Power Plant Facilities for KOMIPO
-         */
-        function build3DPowerPlants() {
-            const plantLayouts = [
-                { name: '보령발전본부', x: -35, z: 15, color: 0x3b82f6, stacks: 4, isMain: true },
-                { name: '신보령발전본부', x: -45, z: -20, color: 0x6366f1, stacks: 2 },
-                { name: '서울발전본부', x: 25, z: -35, color: 0x10b981, stacks: 2 },
-                { name: '인천발전본부', x: 35, z: 0, color: 0x06b6d4, stacks: 3 },
-                { name: '신서천발전본부', x: -10, z: -40, color: 0xf59e0b, stacks: 1 },
-                { name: '제주발전본부', x: 0, z: 45, color: 0x8b5cf6, stacks: 2 },
-                { name: '세종발전본부', x: 30, z: 35, color: 0xec4899, stacks: 1 }
-            ];
-
-            plantLayouts.forEach(layout => {
-                const group = new THREE.Group();
-                group.position.set(layout.x, 0, layout.z);
-                group.userData = { plantName: layout.name };
-
-                // Base Pad
-                const padGeo = new THREE.BoxGeometry(22, 0.8, 22);
-                const padMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
-                const pad = new THREE.Mesh(padGeo, padMat);
-                pad.position.y = 0.4;
-                pad.receiveShadow = true;
-                group.add(pad);
-
-                // Main Boiler/Turbine Building
-                const bldgGeo = new THREE.BoxGeometry(12, layout.isMain ? 14 : 10, 14);
-                const bldgMat = new THREE.MeshStandardMaterial({
-                    color: layout.color,
-                    metalness: 0.4,
-                    roughness: 0.3
-                });
-                const bldg = new THREE.Mesh(bldgGeo, bldgMat);
-                bldg.position.set(-2, (layout.isMain ? 14 : 10) / 2 + 0.8, 0);
-                bldg.castShadow = true;
-                bldg.receiveShadow = true;
-                bldg.userData = { plantName: layout.name, type: 'building' };
-                group.add(bldg);
-
-                // Glowing Sensors on roof
-                const sensorGeo = new THREE.SphereGeometry(0.8, 16, 16);
-                const sensorMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-                const sensor = new THREE.Mesh(sensorGeo, sensorMat);
-                sensor.position.set(-2, (layout.isMain ? 14 : 10) + 1.6, 0);
-                group.add(sensor);
-
-                // Chimney Stacks
-                for (let i = 0; i < layout.stacks; i++) {
-                    const stackHeight = 18 + i * 2;
-                    const stackGeo = new THREE.CylinderGeometry(0.8, 1.4, stackHeight, 16);
-                    const stackMat = new THREE.MeshStandardMaterial({
-                        color: 0xe2e8f0,
-                        metalness: 0.6,
-                        roughness: 0.2
-                    });
-                    const stack = new THREE.Mesh(stackGeo, stackMat);
-                    const stackX = 6;
-                    const stackZ = (i - (layout.stacks - 1) / 2) * 4;
-                    stack.position.set(stackX, stackHeight / 2 + 0.8, stackZ);
-                    stack.castShadow = true;
-                    stack.userData = { plantName: layout.name, stackIdx: i + 1, type: 'stack' };
-                    group.add(stack);
-
-                    // Stack Sensor Ring Glow
-                    const ringGeo = new THREE.TorusGeometry(1.0, 0.15, 8, 24);
-                    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-                    const ring = new THREE.Mesh(ringGeo, ringMat);
-                    ring.rotation.x = Math.PI / 2;
-                    ring.position.set(stackX, stackHeight - 2, stackZ);
-                    group.add(ring);
-
-                    // Particle Smoke System for Chimney Stack
-                    const particleSys = createStackSmokeParticles(layout.x + stackX, stackHeight + 0.8, layout.z + stackZ);
-                    scene.add(particleSys);
-                    stackParticleSystems.push(particleSys);
+            Papa.parse(GOOGLE_SHEET_CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    syncIcon.classList.remove('fa-spin');
+                    if(results.data && results.data.length > 0) {
+                        rawData = results.data;
+                        processData(rawData);
+                        document.getElementById('last-updated').innerText = `동기화: ${new Date().toLocaleTimeString()}`;
+                    }
+                },
+                error: function(err) {
+                    syncIcon.classList.remove('fa-spin');
+                    console.error("Google Sheets Fetch Error:", err);
                 }
-
-                // Holographic Label Ring around ground
-                const holoGeo = new THREE.RingGeometry(12, 12.5, 32);
-                const holoMat = new THREE.MeshBasicMaterial({ color: layout.color, side: THREE.DoubleSide, transparent: true, opacity: 0.6 });
-                const holoRing = new THREE.Mesh(holoGeo, holoMat);
-                holoRing.rotation.x = Math.PI / 2;
-                holoRing.position.y = 0.85;
-                group.add(holoRing);
-
-                scene.add(group);
-                plant3DGroupMap[layout.name] = group;
             });
         }
 
-        /**
-         * Creates Smoke Particles for Stack Tops
-         */
-        function createStackSmokeParticles(x, y, z) {
-            const count = 35;
-            const geometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(count * 3);
-            const velocities = [];
+        // Process actual columns from Google Sheet
+        function processData(data) {
+            let totalNox = 0, totalSox = 0, totalDust = 0;
+            let count = 0;
+            plantAggregated = {};
 
-            for (let i = 0; i < count; i++) {
-                positions[i * 3] = x + (Math.random() - 0.5) * 0.5;
-                positions[i * 3 + 1] = y + Math.random() * 8;
-                positions[i * 3 + 2] = z + (Math.random() - 0.5) * 0.5;
+            data.forEach(row => {
+                const plantNameRaw = row['발전기명'] || '';
+                const sox = parseFloat(row['이산화황 평균농도(Sox_ppm)']) || 0;
+                const nox = parseFloat(row['질소산화물 평균농도(Nox_ppm)']) || 0;
+                const dust = parseFloat(row['먼지 평균농도(표준세제곱미터당 밀리그램)']) || 0;
 
-                velocities.push({
-                    x: (Math.random() - 0.5) * 0.03,
-                    y: 0.08 + Math.random() * 0.05,
-                    z: (Math.random() - 0.5) * 0.03,
-                    initialY: y
-                });
-            }
+                totalNox += nox;
+                totalSox += sox;
+                totalDust += dust;
+                count++;
 
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-            const material = new THREE.PointsMaterial({
-                color: 0x38bdf8,
-                size: 1.8,
-                transparent: true,
-                opacity: 0.45,
-                blending: THREE.AdditiveBlending
-            });
-
-            const points = new THREE.Points(geometry, material);
-            points.userData = { velocities: velocities, originY: y };
-            return points;
-        }
-
-        function onDocumentPointerDown(event) {
-            // Only trigger if left click and not dragging UI
-            if (event.button !== 0) return;
-
-            const rect = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, camera);
-
-            const clickableObjects = [];
-            Object.values(plant3DGroupMap).forEach(group => {
-                group.traverse(child => {
-                    if (child.isMesh && child.userData && child.userData.plantName) {
-                        clickableObjects.push(child);
+                Object.keys(plantCoords).forEach(key => {
+                    if(plantNameRaw.includes(key)) {
+                        if(!plantAggregated[key]) {
+                            plantAggregated[key] = { nox: 0, sox: 0, dust: 0, count: 0 };
+                        }
+                        plantAggregated[key].nox += nox;
+                        plantAggregated[key].sox += sox;
+                        plantAggregated[key].dust += dust;
+                        plantAggregated[key].count += 1;
                     }
                 });
             });
 
-            const intersects = raycaster.intersectObjects(clickableObjects);
-            if (intersects.length > 0) {
-                const targetObj = intersects[0].object;
-                const plantName = targetObj.userData.plantName;
-                
-                // Select plant in dropdown & update 3D inspector
-                document.getElementById('plantSelect').value = plantName;
-                onPlantSelectChange();
-                focusPlantIn3D(plantName);
-            }
+            // Update KPIs
+            document.getElementById('kpi-nox').innerHTML = `${(count ? totalNox/count : 0).toFixed(2)} <span class="text-xs font-normal text-slate-400">ppm</span>`;
+            document.getElementById('kpi-sox').innerHTML = `${(count ? totalSox/count : 0).toFixed(2)} <span class="text-xs font-normal text-slate-400">ppm</span>`;
+            document.getElementById('kpi-dust').innerHTML = `${(count ? totalDust/count : 0).toFixed(2)} <span class="text-xs font-normal text-slate-400">mg/S㎥</span>`;
+            document.getElementById('kpi-records').innerHTML = `${data.length} <span class="text-xs font-normal text-slate-400">건</span>`;
+
+            updateChart();
+            update3DVisuals();
         }
 
-        /**
-         * Animates Camera to Target Plant
-         */
-        function focusPlantIn3D(plantName) {
-            const group = plant3DGroupMap[plantName];
-            if (!group) return;
+        function init3DScene() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
 
-            const targetPos = group.position;
-            
-            // Smooth Camera Fly-to
-            const startCamPos = camera.position.clone();
-            const endCamPos = new THREE.Vector3(targetPos.x + 15, 25, targetPos.z + 30);
-            
-            let progress = 0;
-            function fly() {
-                progress += 0.04;
-                if (progress <= 1) {
-                    camera.position.lerpVectors(startCamPos, endCamPos, progress);
-                    controls.target.lerp(targetPos, 0.1);
-                    requestAnimationFrame(fly);
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 45, 85);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05;
+            controls.autoRotate = autoRotate;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(50, 80, 30);
+            scene.add(dirLight);
+
+            const gridHelper = new THREE.GridHelper(160, 40, 0x3b82f6, 0x1e293b);
+            scene.add(gridHelper);
+
+            build3DPowerPlants();
+
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            window.addEventListener('click', (e) => {
+                if(e.target.tagName !== 'CANVAS') return;
+
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(scene.children, true);
+
+                if(intersects.length > 0) {
+                    let obj = intersects[0].object;
+                    while(obj.parent && !obj.userData.plantKey && obj.parent !== scene) {
+                        obj = obj.parent;
+                    }
+                    if(obj.userData.plantKey) {
+                        showTelemetry(obj.userData.plantKey);
+                    }
                 }
-            }
-            fly();
+            });
 
-            updateInspectorCard(plantName);
+            window.addEventListener('resize', onWindowResize);
+            animate();
         }
 
-        /**
-         * Sets Camera Viewport Presets
-         */
-        function setCameraPreset(presetKey) {
-            let targetCam = new THREE.Vector3(0, 50, 110);
-            let targetLook = new THREE.Vector3(0, 0, 0);
+        function build3DPowerPlants() {
+            Object.keys(plantCoords).forEach(key => {
+                const conf = plantCoords[key];
+                const group = new THREE.Group();
+                group.position.set(conf.x, 0, conf.z);
+                group.userData = { plantKey: key };
 
-            if (presetKey === 'boryeong') {
-                targetCam.set(-35 + 20, 30, 15 + 35);
-                targetLook.set(-35, 5, 15);
-            } else if (presetKey === 'seoul') {
-                targetCam.set(25 + 15, 25, -35 + 25);
-                targetLook.set(25, 5, -35);
-            } else if (presetKey === 'seocheon') {
-                targetCam.set(-10 + 15, 20, -40 + 20);
-                targetLook.set(-10, 5, -40);
-            } else if (presetKey === 'stack_detail') {
-                targetCam.set(-35 + 8, 22, 15 + 8);
-                targetLook.set(-35 + 6, 18, 15);
-            }
+                const base = new THREE.Mesh(
+                    new THREE.BoxGeometry(10, 1, 10),
+                    new THREE.MeshStandardMaterial({ color: 0x1e293b })
+                );
+                base.position.y = 0.5;
+                group.add(base);
 
-            controls.target.copy(targetLook);
-            camera.position.copy(targetCam);
+                const bldg = new THREE.Mesh(
+                    new THREE.BoxGeometry(6, 8, 6),
+                    new THREE.MeshStandardMaterial({ color: 0x334155 })
+                );
+                bldg.position.y = 4.5;
+                group.add(bldg);
+
+                const stack = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.8, 1.2, 16, 16),
+                    new THREE.MeshStandardMaterial({ color: conf.color })
+                );
+                stack.position.set(2, 8, 2);
+                group.add(stack);
+
+                const particles = createSmokeParticles(conf.x + 2, 16, conf.z + 2);
+                scene.add(particles);
+
+                scene.add(group);
+                plantMeshes[key] = { group, stack, particles };
+            });
         }
 
-        let lastTime = performance.now();
-        let frameCount = 0;
+        function createSmokeParticles(x, y, z) {
+            const count = 30;
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+
+            for(let i=0; i<count; i++) {
+                positions[i*3] = x + (Math.random() - 0.5) * 0.5;
+                positions[i*3+1] = y + Math.random() * 8;
+                positions[i*3+2] = z + (Math.random() - 0.5) * 0.5;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const pSystem = new THREE.Points(geometry, new THREE.PointsMaterial({
+                color: 0x38bdf8,
+                size: 0.8,
+                transparent: true,
+                opacity: 0.6
+            }));
+            pSystem.userData = { originX: x, originY: y, originZ: z };
+            particleSystems.push(pSystem);
+            return pSystem;
+        }
+
+        function update3DVisuals() {
+            Object.keys(plantCoords).forEach(key => {
+                if(plantMeshes[key] && plantAggregated[key]) {
+                    const data = plantAggregated[key];
+                    const avgNox = data.count ? data.nox / data.count : 0;
+                    const particles = plantMeshes[key].particles;
+
+                    if(avgNox > 15) {
+                        particles.material.color.setHex(0xef4444); // High: Red
+                    } else if(avgNox > 8) {
+                        particles.material.color.setHex(0xf59e0b); // Medium: Amber
+                    } else {
+                        particles.material.color.setHex(0x38bdf8); // Normal: Cyan
+                    }
+                }
+            });
+        }
 
         function animate() {
             requestAnimationFrame(animate);
 
-            // Update Controls
-            controls.update();
-
-            // Animate Stack Particles
-            if (document.getElementById('toggleParticles').checked) {
-                stackParticleSystems.forEach(sys => {
-                    const positions = sys.geometry.attributes.position.array;
-                    const velocities = sys.userData.velocities;
-                    const originY = sys.userData.originY;
-
-                    for (let i = 0; i < velocities.length; i++) {
-                        positions[i * 3 + 1] += velocities[i].y;
-                        positions[i * 3] += velocities[i].x;
-                        positions[i * 3 + 2] += velocities[i].z;
-
-                        // Reset particle loop
-                        if (positions[i * 3 + 1] > originY + 12) {
-                            positions[i * 3 + 1] = originY;
-                            positions[i * 3] = sys.position.x + (Math.random() - 0.5) * 0.5;
-                            positions[i * 3 + 2] = sys.position.z + (Math.random() - 0.5) * 0.5;
-                        }
+            particleSystems.forEach(pSystem => {
+                const positions = pSystem.geometry.attributes.position.array;
+                for(let i=0; i<positions.length; i+=3) {
+                    positions[i+1] += 0.08;
+                    if(positions[i+1] > pSystem.userData.originY + 12) {
+                        positions[i+1] = pSystem.userData.originY;
+                        positions[i] = pSystem.userData.originX + (Math.random() - 0.5) * 0.5;
+                        positions[i+2] = pSystem.userData.originZ + (Math.random() - 0.5) * 0.5;
                     }
-                    sys.geometry.attributes.position.needsUpdate = true;
-                });
-            }
-
-            // Slowly rotate plant holo rings
-            Object.values(plant3DGroupMap).forEach(g => {
-                g.children.forEach(c => {
-                    if (c.geometry && c.geometry.type === 'RingGeometry') {
-                        c.rotation.z += 0.005;
-                    }
-                });
+                }
+                pSystem.geometry.attributes.position.needsUpdate = true;
             });
 
-            // FPS Counter
-            frameCount++;
-            const now = performance.now();
-            if (now - lastTime >= 1000) {
-                document.getElementById('fpsCounter').textContent = frameCount;
-                frameCount = 0;
-                lastTime = now;
-            }
-
+            controls.update();
             renderer.render(scene, camera);
         }
 
-        function onWindowResize() {
-            const container = document.getElementById('webgl-container');
-            camera.aspect = container.clientWidth / container.clientHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(container.clientWidth, container.clientHeight);
-        }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            init3DScene();
-            rawData = generateDefaultKomipoData();
-            populatePlantDropdown();
-            applyFilters();
-        });
-
-        function populatePlantDropdown() {
-            const select = document.getElementById('plantSelect');
-            const uniquePlants = [...new Set(rawData.map(r => r.plant))].sort();
-            
-            select.innerHTML = '<option value="ALL">전체 사업소 통합 관제</option>';
-            uniquePlants.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p;
-                opt.textContent = p;
-                select.appendChild(opt);
-            });
-        }
-
-        function onPlantSelectChange() {
-            selectedPlantName = document.getElementById('plantSelect').value;
-            applyFilters();
-
-            if (selectedPlantName !== 'ALL') {
-                focusPlantIn3D(selectedPlantName);
-            }
-        }
-
-        function applyFilters() {
-            filteredData = rawData.filter(row => {
-                if (selectedPlantName !== 'ALL' && row.plant !== selectedPlantName) return false;
-                return true;
-            });
-
-            updateKPIs();
-            renderCharts();
-            renderTable();
-            if (selectedPlantName !== 'ALL') {
-                updateInspectorCard(selectedPlantName);
-            }
-        }
-
-        function updateKPIs() {
-            let totalNox = 0, totalSox = 0, totalDust = 0;
-            filteredData.forEach(r => {
-                totalNox += r.nox;
-                totalSox += r.sox;
-                totalDust += r.dust;
-            });
-
-            const totalKg = totalNox + totalSox + totalDust;
-            const totalTon = (totalKg / 1000).toFixed(1);
-            const noxTon = (totalNox / 1000).toFixed(1);
-            const soxTon = (totalSox / 1000).toFixed(1);
-            const dustTon = (totalDust / 1000).toFixed(1);
-
-            document.getElementById('kpiTotalEmissions').textContent = Number(totalTon).toLocaleString();
-            document.getElementById('kpiNoxVal').textContent = `${Number(noxTon).toLocaleString()} 톤`;
-            document.getElementById('kpiSoxVal').textContent = `${Number(soxTon).toLocaleString()} 톤`;
-            document.getElementById('kpiDustVal').textContent = `${Number(dustTon).toLocaleString()} 톤`;
-
-            const noxPct = totalKg > 0 ? ((totalNox / totalKg) * 100).toFixed(1) : 0;
-            const soxPct = totalKg > 0 ? ((totalSox / totalKg) * 100).toFixed(1) : 0;
-            const dustPct = totalKg > 0 ? ((totalDust / totalKg) * 100).toFixed(1) : 0;
-
-            document.getElementById('shareNox').textContent = `${noxPct}%`;
-            document.getElementById('shareSox').textContent = `${soxPct}%`;
-            document.getElementById('shareDust').textContent = `${dustPct}%`;
-
-            document.getElementById('barNox').style.width = `${noxPct}%`;
-            document.getElementById('barSox').style.width = `${soxPct}%`;
-            document.getElementById('barDust').style.width = `${dustPct}%`;
-        }
-
-        function updateInspectorCard(plantName) {
-            const plantRows = rawData.filter(r => r.plant === plantName);
-            let noxSum = 0, soxSum = 0, dustSum = 0;
-            plantRows.forEach(r => { noxSum += r.nox; soxSum += r.sox; dustSum += r.dust; });
-
-            document.getElementById('targetPlantName').textContent = plantName;
-            document.getElementById('targetNox').textContent = Math.round(noxSum).toLocaleString();
-            document.getElementById('targetSox').textContent = Math.round(soxSum).toLocaleString();
-            document.getElementById('targetDust').textContent = Math.round(dustSum).toLocaleString();
-
-            const stackInfoMap = {
-                '보령발전본부': '150m (4기 수직 연돌)',
-                '신보령발전본부': '160m (2기 초초임계압)',
-                '서울발전본부': '80m (지하 복합발전)',
-                '인천발전본부': '100m (3기 복합)',
-                '신서천발전본부': '150m (1기 최신설비)',
-                '제주발전본부': '90m (3기 친환경)',
-                '세종발전본부': '85m (1기 집단에너지)'
-            };
-            document.getElementById('targetStackHeight').textContent = stackInfoMap[plantName] || '120m (기본)';
-        }
-
-        function renderCharts() {
-            // Chart 1: Monthly Trend
-            const months = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
-            const monthlyNox = new Array(12).fill(0);
-            const monthlySox = new Array(12).fill(0);
-
-            filteredData.forEach(r => {
-                if (r.month >= 1 && r.month <= 12) {
-                    monthlyNox[r.month - 1] += r.nox / 1000;
-                    monthlySox[r.month - 1] += r.sox / 1000;
-                }
-            });
-
-            const ctxMonthly = document.getElementById('monthlyTrendChart').getContext('2d');
-            if (monthlyChart) monthlyChart.destroy();
-
-            monthlyChart = new Chart(ctxMonthly, {
-                type: 'line',
+        function initChart() {
+            const ctx = document.getElementById('plantChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
                 data: {
-                    labels: months,
-                    datasets: [
-                        { label: 'NOx', data: monthlyNox.map(v=>Math.round(v)), borderColor: '#f59e0b', borderWidth: 2, tension: 0.3 },
-                        { label: 'SOx', data: monthlySox.map(v=>Math.round(v)), borderColor: '#6366f1', borderWidth: 2, tension: 0.3 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
-                    scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false } },
-                        y: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } }
-                    }
-                }
-            });
-
-            // Chart 2: Top Units Bar
-            const unitMap = {};
-            filteredData.forEach(r => {
-                const key = `${r.plant} ${r.unit}`;
-                unitMap[key] = (unitMap[key] || 0) + (r.total / 1000);
-            });
-
-            const sorted = Object.entries(unitMap).sort((a,b)=>b[1]-a[1]).slice(0, 5);
-            const ctxUnits = document.getElementById('topUnitsChart').getContext('2d');
-            if (topUnitsChart) topUnitsChart.destroy();
-
-            topUnitsChart = new Chart(ctxUnits, {
-                type: 'bar',
-                data: {
-                    labels: sorted.map(s => s[0]),
+                    labels: Object.keys(plantCoords),
                     datasets: [{
-                        data: sorted.map(s => Math.round(s[1])),
-                        backgroundColor: '#00A3E0',
-                        borderRadius: 4
+                        data: [0, 0, 0, 0, 0, 0, 0],
+                        backgroundColor: ['#3b82f6', '#06b6d4', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1'],
+                        borderWidth: 0
                     }]
                 },
                 options: {
-                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } },
-                        y: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { display: false } }
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } }
                     }
                 }
             });
         }
 
-        function renderTable() {
-            const tbody = document.getElementById('modalTableBody');
-            const searchVal = document.getElementById('tableSearchInput').value.toLowerCase();
-            tbody.innerHTML = '';
-
-            const rows = filteredData.filter(r => {
-                if (searchVal && !r.plant.toLowerCase().includes(searchVal) && !r.unit.toLowerCase().includes(searchVal)) return false;
-                return true;
+        function updateChart() {
+            if(!chartInstance) return;
+            const labels = Object.keys(plantCoords);
+            const values = labels.map(key => {
+                const data = plantAggregated[key];
+                return data && data.count ? (data.nox / data.count).toFixed(2) : 0;
             });
 
-            document.getElementById('tableTotalRows').textContent = rows.length.toLocaleString();
-
-            rows.slice(0, 50).forEach(r => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-800/60 transition-colors';
-                tr.innerHTML = `
-                    <td class="py-2 px-4 font-mono">${r.date}</td>
-                    <td class="py-2 px-4 font-medium text-white">${r.plant}</td>
-                    <td class="py-2 px-4"><span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">${r.unit}</span></td>
-                    <td class="py-2 px-4 text-right font-mono text-amber-400">${r.nox.toLocaleString()}</td>
-                    <td class="py-2 px-4 text-right font-mono text-indigo-400">${r.sox.toLocaleString()}</td>
-                    <td class="py-2 px-4 text-right font-mono text-teal-400">${r.dust.toLocaleString()}</td>
-                    <td class="py-2 px-4 text-right font-mono font-bold text-white">${r.total.toLocaleString()}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            chartInstance.data.datasets[0].data = values;
+            chartInstance.update();
         }
 
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        function showTelemetry(plantKey) {
+            const panel = document.getElementById('telemetry-panel');
+            const data = plantAggregated[plantKey] || { nox: 0, sox: 0, dust: 0, count: 0 };
+            const count = data.count || 1;
 
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                dynamicTyping: true,
-                complete: function(results) {
-                    if (results.data && results.data.length > 0) {
-                        const parsed = [];
-                        results.data.forEach((row, idx) => {
-                            const plant = row['사업소명'] || row['사업소'] || row['발전소명'] || '기타사업소';
-                            const unit = row['발전설비'] || row['호기'] || `설비_${idx+1}`;
-                            const date = row['측정일자'] || row['일자'] || '2025-12-31';
-                            const nox = parseFloat(row['질소산화물(kg)'] || row['NOx'] || 0) || 0;
-                            const sox = parseFloat(row['황산화물(kg)'] || row['SOx'] || 0) || 0;
-                            const dust = parseFloat(row['먼지(kg)'] || row['Dust'] || 0) || 0;
+            document.getElementById('target-plant-name').innerText = `${plantKey} 발전기`;
+            document.getElementById('target-nox').innerText = `${(data.nox / count).toFixed(2)} ppm`;
+            document.getElementById('target-sox').innerText = `${(data.sox / count).toFixed(2)} ppm`;
+            document.getElementById('target-dust').innerText = `${(data.dust / count).toFixed(2)} mg/S㎥`;
 
-                            parsed.push({
-                                date: String(date),
-                                month: 12,
-                                plant: String(plant),
-                                unit: String(unit),
-                                nox: Math.round(nox),
-                                sox: Math.round(sox),
-                                dust: Math.round(dust),
-                                total: Math.round(nox + sox + dust)
-                            });
-                        });
-                        rawData = parsed;
-                        document.getElementById('activeDatasetTag').textContent = `업로드: ${file.name}`;
-                        populatePlantDropdown();
-                        applyFilters();
-                    }
-                }
-            });
+            panel.classList.remove('hidden');
+            focusPlant(plantKey);
         }
 
-        function exportFilteredCSV() {
-            if (!filteredData || filteredData.length === 0) return;
-            let csv = "data:text/csv;charset=utf-8,\uFEFF측정일자,사업소명,발전설비,질소산화물(kg),황산화물(kg),먼지(kg),합계(kg)\n";
-            filteredData.forEach(r => {
-                csv += `"${r.date}","${r.plant}","${r.unit}",${r.nox},${r.sox},${r.dust},${r.total}\n`;
-            });
-            const link = document.createElement("a");
-            link.href = encodeURI(csv);
-            link.download = `KOMIPO_3D_DigitalTwin_Export_${new Date().toISOString().slice(0,10)}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+        function closeTelemetry() {
+            document.getElementById('telemetry-panel').classList.add('hidden');
         }
 
-        // UI Modal Toggles
-        function toggleDisplayOptions() {
-            document.getElementById('optionsPanel').classList.toggle('hidden');
+        function focusPlant(key) {
+            if(key === 'ALL') {
+                resetCamera();
+                return;
+            }
+            const coord = plantCoords[key];
+            if(coord) {
+                controls.autoRotate = false;
+                camera.position.set(coord.x + 15, 20, coord.z + 25);
+                controls.target.set(coord.x, 5, coord.z);
+            }
         }
 
-        function toggleTableModal() {
-            document.getElementById('tableModal').classList.toggle('hidden');
+        function resetCamera() {
+            camera.position.set(0, 45, 85);
+            controls.target.set(0, 0, 0);
+            controls.autoRotate = autoRotate;
         }
 
-        function toggleSmokeParticles(visible) {
-            stackParticleSystems.forEach(sys => { sys.visible = visible; });
+        function toggleAutoRotate() {
+            autoRotate = !autoRotate;
+            controls.autoRotate = autoRotate;
+            document.getElementById('autorotate-btn').classList.toggle('text-blue-400');
         }
 
-        function toggleAutoRotation(enabled) {
-            controls.autoRotate = enabled;
-            controls.autoRotateSpeed = 1.5;
-        }
-
-        function toggleTerrainGrid(visible) {
-            if (terrainGridHelper) terrainGridHelper.visible = visible;
-        }
-
-        function toggleHeatmapOverlay(visible) {
-            if (heatmapOverlayMesh) heatmapOverlayMesh.material.visible = visible;
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
     </script>
 </body>
